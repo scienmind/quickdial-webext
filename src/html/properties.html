@@ -33,16 +33,24 @@
 						<tr>
 							<td><span>Title :</span></td>
 							<td><input id="Title" type="text" style="width:100%"></td>
+							<td style="width:20px"><input id="TitleLocked" type="checkbox" title="Lock title"></td>
 						</tr>
 						<tr>
 							<td><span>Url :</span></td>
-							<td><input id="Url" type="text" style="width:100%"></td>
+							<td colspan="2"><input id="Url" type="text" style="width:100%"></td>
 						</tr>
 					
 					
 						<tr>
 							<td><span>Image :</span></td>
-							<td>
+							<td colspan="2">
+								<select id="ImageMode">
+									<option value="-1">Default</option>
+									<option value="0">Stretch</option>
+									<option value="1">Cover</option>
+									<option value="2">Contain</option>
+									<option value="3">Center</option>
+								</select>
 								<button id="ImageReset">Reset</button>
 								<button id="ImageDefault">Default</button>
 								<button class="hidden" id="ImageRefresh">Refresh</button>
@@ -52,7 +60,7 @@
 						</tr>
 						<tr>
 							<td></td>
-							<td><div id="ImagePreview" style="width: 300px; height: 180px;"></div></td>
+							<td colspan="2"><div id="ImagePreview" style="width: 300px; height: 180px;"></div></td>
 						</tr>
 						
 					

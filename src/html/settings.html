@@ -12,10 +12,11 @@
 			input[type=color] { width: 60px; }
 			.hidden { display: none; }
 			.Tab>table { width: 100%; border-collapse: collapse; }
+			.Tab>div { overflow: auto; }
 			.Tab .TabSpace { width: 100%; border-bottom: solid 1px #505050; }
 			.Tab .TabButton { border: solid 1px #505050; padding: 2px 6px 2px 6px; cursor: default; }
 			.Tab .TabButtonActive { border: solid 1px #505050; border-bottom: none; padding: 2px 6px 2px 6px; cursor: default; }
-			.Tab>div { padding: 8px; height: 330px; border-left: solid 1px #505050; border-bottom: solid 1px #505050; border-right: solid 1px #505050; }
+			.Tab>div { padding: 8px; height: 350px; border-left: solid 1px #505050; border-bottom: solid 1px #505050; border-right: solid 1px #505050; }
 		</style>
 	</head>
 	<body id="body">
@@ -36,6 +37,17 @@
 							<td><input id="BackgroundColor" type="color"></td>
 						</tr>
 						<tr>
+							<td><span>Background Mode :</span></td>
+							<td>
+								<select id="BackgroundMode">
+									<option value="0">Stretch</option>
+									<option value="1">Cover</option>
+									<option value="2">Contain</option>
+									<option value="3">Center</option>
+								</select>
+							</td>
+						</tr>
+						<tr>
 							<td><span>Background Image :</span></td>
 							<td>
 								<button id="BackgroundImageClear">Clear</button>
@@ -53,13 +65,13 @@
 						<tr>
 							<td><span>Rows x Columns :</span></td>
 							<td>
-								<input id="GridRows" type="number">
-								<input id="GridColumns" type="number">
+								<input id="GridRows" type="number" min="1">
+								<input id="GridColumns" type="number" min="1">
 							</td>
 						</tr>
 						<tr>
 							<td><span>Margins :</span></td>
-							<td><input id="GridMargins" type="number"></td>
+							<td><input id="GridMargins" type="number" min="0"></td>
 						</tr>
 						<tr>
 							<td><span>Back Button :</span></td>
@@ -70,16 +82,38 @@
 						<tr>
 							<td>
 								<div>Back :</div>
+								<div>
+									<select id="GridBackMode">
+										<option value="0">Stretch</option>
+										<option value="1">Cover</option>
+										<option value="2">Contain</option>
+										<option value="3">Center</option>
+									</select>
+								</div>
 								<button id="GridBackImageReset">Reset</button>
 								<input id="GridBackImageFile" type="file" style="width:220px;">
 								<div id="GridBackPreview" style="width: 220px; height: 150px; border: 1px solid #000000"></div>
 							</td>
 							<td>
 								<div>Folder :</div>
+								<div>
+									<select id="GridFolderMode">
+										<option value="0">Stretch</option>
+										<option value="1">Cover</option>
+										<option value="2">Contain</option>
+										<option value="3">Center</option>
+									</select>
+								</div>
 								<button id="GridFolderImageReset">Reset</button>
 								<input id="GridFolderImageFile" type="file" style="width:220px;">
 								<div id="GridFolderPreview" style="width: 220px; height: 150px; border: 1px solid #000000"></div>
 							</td>
+						</tr>
+					</table>
+					<table style="width:100%;">
+						<tr>
+							<td><span>Root Folder :</span></td>
+							<td><input id="GridRoot" type="text" style="width:100%;"></td>
 						</tr>
 					</table>
 				</div>
@@ -92,13 +126,23 @@
 						</tr>
 						<tr>
 							<td><span>Margins :</span></td>
-							<td><input id="GridCellsMargins" type="number"></td>
-							<td><input id="GridCellsMarginsHover" type="number" style="display: none;"></td>
+							<td><input id="GridCellsMargins" type="number" min="0"></td>
+							<td><input id="GridCellsMarginsHover" type="number" min="0"></td>
+						</tr>
+						<tr>
+							<td><span>Opacity :</span></td>
+							<td><input id="GridCellsOpacity" type="number" min="0" max="100"></td>
+							<td><input id="GridCellsOpacityHover" type="number" min="0" max="100"></td>
+						</tr>
+						<tr>
+							<td><span>Border Size :</span></td>
+							<td><input id="GridCellsBorderSize" type="number" min="0"></td>
+							<td><input id="GridCellsBorderSizeHover" type="number" min="0"></td>
 						</tr>
 						<tr>
 							<td><span>Border Radius :</span></td>
-							<td><input id="GridCellsBorderRadius" type="number"></td>
-							<td><input id="GridCellsBorderRadiusHover" type="number"></td>
+							<td><input id="GridCellsBorderRadius" type="number" min="0"></td>
+							<td><input id="GridCellsBorderRadiusHover" type="number" min="0"></td>
 						</tr>
 						<tr>
 							<td><span>Background Transparent :</span></td>
@@ -118,17 +162,22 @@
 						<tr>
 							<td><span>Title :</span></td>
 							<td><input id="GridCellsTitle" type="checkbox"></td>
-							<td></td>
+							<td><input id="GridCellsTitleHover" type="checkbox"></td>
 						</tr>
 						<tr>
 							<td><span>Title Height :</span></td>
-							<td><input id="GridCellsTitleHeight" type="number"></td>
-							<td></td>
+							<td><input id="GridCellsTitleHeight" type="number" min="0"></td>
+							<td><input id="GridCellsTitleHeightHover" type="number" min="0"></td>
 						</tr>
 						<tr>
 							<td><span>Title Font Size :</span></td>
-							<td><input id="GridCellsTitleFontSize" type="number"></td>
-							<td></td>
+							<td><input id="GridCellsTitleFontSize" type="number" min="0"></td>
+							<td><input id="GridCellsTitleFontSizeHover" type="number" min="0"></td>
+						</tr>
+						<tr>
+							<td><span>Title Border Size :</span></td>
+							<td><input id="GridCellsTitleBorderSize" type="number" min="0"></td>
+							<td><input id="GridCellsTitleBorderSizeHover" type="number" min="0"></td>
 						</tr>
 						<tr>
 							<td><span>Title Text Color :</span></td>

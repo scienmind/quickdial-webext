@@ -2,7 +2,8 @@ var utils = {};
 var app = {};
 var dial = {
 	page: 1,
-	maxpage: 1
+	maxpage: 1,
+	capture: 0
 };
 
 document.addEventListener("DOMContentLoaded", function(event) {
@@ -11,24 +12,40 @@ document.addEventListener("DOMContentLoaded", function(event) {
 	dial.init();
 });
 
-window.onresize = function(){
+window.addEventListener('resize', function(){
 	if(app && app.settings) dial.updateGridLayout();
-}
-window.onwheel = function(ev){
+});
+window.addEventListener('wheel', function(e){
 	if(app && app.settings){
-		if(ev.deltaY > 0){
+		if(e.deltaY > 0){
 			if(dial.page < dial.maxpage){
 				dial.page += 1;
 				dial.populateGrid();
 			}
-		} else if(ev.deltaY < 0){
+		} else if(e.deltaY < 0){
 			if(dial.page > 1){
 				dial.page -= 1;
 				dial.populateGrid();
 			}
 		}
 	}
-}
+});
+window.addEventListener('keyup', function(e){
+	switch(e.key){
+		case 'PageDown':
+			if(dial.page < dial.maxpage){
+				dial.page += 1;
+				dial.populateGrid();
+			}
+			break;
+		case 'PageUp':
+			if(dial.page > 1){
+				dial.page -= 1;
+				dial.populateGrid();
+			}
+			break;
+	}
+});
 
 
 
@@ -73,16 +90,31 @@ app.Messages.init = function(){
 				app.Messages.getSettings(app.Settings._changed);
 				break;
 			case app.Messages.Commands.gridNodesLoaded:
-				app.Messages.getNode(dial.path, app.GridNodes._changed);
+				if(dial.skipUpdate!=true) app.Messages.getNode(dial.path, app.GridNodes._changed);
 				break;
 		}
 	});
 };
 app.Messages.getSettings = function(callback){
-	browser.runtime.sendMessage({ cmd: app.Messages.Commands.getSettings }).then(callback, callback);
+	browser.runtime.getBackgroundPage().then(function(page){
+		if(page){
+			if(callback) callback(page.app.settings);
+		} else {
+			browser.runtime.sendMessage({ cmd: app.Messages.Commands.getSettings }).then(callback, callback);
+		}
+	});
 };
 app.Messages.getNode = function(path, callback){
-	browser.runtime.sendMessage({ cmd: app.Messages.Commands.getNode, path: path }).then(callback);
+	browser.runtime.getBackgroundPage().then(function(page){
+		if(page){
+			if(callback) callback(page.app.GridNodes.getNode(page.app.node, dial.path.substr(1)));
+		} else {
+			browser.runtime.sendMessage({ cmd: app.Messages.Commands.getNode, path: path }).then(callback);
+		}
+	});
+};
+app.Messages.updateNode = function(id, value, callback){
+	browser.runtime.sendMessage({ cmd: app.Messages.Commands.updateNode, id: id, value: value }).then(callback);
 };
 app.Messages.setNodeIndex = function(index, newIndex, callback){
 	browser.runtime.sendMessage({ cmd: app.Messages.Commands.setNodeIndex, path: dial.path, index: index, newIndex: newIndex }).then(callback);
@@ -182,6 +214,12 @@ dial.initMenus = function(){
 		dial.refreshNode(dial._selectedItem);
 	};
 
+	dial.ItemMenuCaptureHere = document.createElement('menuitem');
+	dial.ItemMenuCaptureHere.label = browser.i18n.getMessage("menuCaptureHere");
+	dial.ItemMenuCaptureHere.onclick = function(){
+		dial.captureHere(dial._selectedItem);
+	};
+	
 	dial.ItemMenuCapture = document.createElement('menuitem');
 	dial.ItemMenuCapture.label = browser.i18n.getMessage("menuCapturePage");
 	dial.ItemMenuCapture.onclick = function(){
@@ -202,6 +240,7 @@ dial.initMenus = function(){
 	dial.ItemMenu.appendChild(document.createElement('hr'));
 	dial.ItemMenu.appendChild(dial.ItemMenuProperties);
 	dial.ItemMenu.appendChild(dial.ItemMenuRefresh);
+	dial.ItemMenu.appendChild(dial.ItemMenuCaptureHere);
 	dial.ItemMenu.appendChild(dial.ItemMenuCapture);
 	dial.ItemMenu.appendChild(dial.ItemMenuDelete);
 	dial.ItemMenu.appendChild(document.createElement('hr'));
@@ -209,34 +248,61 @@ dial.initMenus = function(){
 	document.body.appendChild(dial.ItemMenu);
 }
 dial.initStyles = function(){
-	if(dial.Style) document.head.removeChild(dial.Style);
+	function applyImageMode(imageMode, target){
+		switch(imageMode){
+			case 0:
+				target.backgroundRepeat = 'no-repeat';
+				target.backgroundSize = '100% 100%';
+				break;
+			case 1:
+				target.backgroundRepeat = 'no-repeat';
+				target.backgroundSize = 'cover';
+				target.backgroundPosition = 'center';
+				break;
+			case 2:
+				target.backgroundRepeat = 'no-repeat';
+				target.backgroundSize = 'contain';
+				target.backgroundPosition = 'center';
+				break;
+			case 3:
+				target.backgroundRepeat = 'no-repeat';
+				target.backgroundPosition = 'center';
+				break;
+		}
+	}
+
+	var oldStyle = dial.Style;
 	dial.Style = document.createElement('style'), StyleSheet;
 	document.head.appendChild(dial.Style);
 	dial.styles = {};
 	dial.styles.html = dial.Style.sheet.cssRules[dial.Style.sheet.insertRule('html { height: 100%; }')].style;
-	dial.styles.body = dial.Style.sheet.cssRules[dial.Style.sheet.insertRule('body { user-select: none; -moz-user-select: none; display: flex;	width: 100%; height: 100%; margin: 0px; padding: 0px; background-color: ' + app.settings.backgroundColor + '; background-image: ' + app.settings.backgroundImage + '; background-repeat: no-repeat; background-size: 100% 100%; }')].style;
+	dial.styles.body = dial.Style.sheet.cssRules[dial.Style.sheet.insertRule('body { user-select: none; -moz-user-select: none; display: flex;	width: 100%; height: 100%; margin: 0px; padding: 0px; background-color: ' + app.settings.backgroundColor + '; background-image: ' + app.settings.backgroundImage + '; }')].style;
+	applyImageMode(app.settings.backgroundMode, dial.styles.body);
 	dial.styles.grid = {};
 	dial.styles.grid.grid = dial.Style.sheet.cssRules[dial.Style.sheet.insertRule('.Grid { border-collapse: collapse; margin: auto; }')].style;
 	dial.styles.grid.cell = dial.Style.sheet.cssRules[dial.Style.sheet.insertRule('.Grid td { margin: 0px; padding: 0px; }')].style;
-	dial.styles.grid.link = dial.Style.sheet.cssRules[dial.Style.sheet.insertRule('.Grid td>a { display: block; outline: none; overflow: hidden; text-decoration: none; margin: ' + app.settings.grid.cells.margin + 'px; border: 1px solid ' + app.settings.grid.cells.borderColor + '; border-radius: ' + app.settings.grid.cells.borderRadius + 'px; }')].style;
-	//dial.styles.grid.linkHover = dial.Style.sheet.cssRules[dial.Style.sheet.insertRule('.Grid td>a:hover { border-color: ' + app.settings.grid.cells.borderColorHover + '; border-radius: ' + app.settings.grid.cells.borderRadiusHover + 'px; }')].style;
-	dial.styles.grid.linkHover = dial.Style.sheet.cssRules[dial.Style.sheet.insertRule('.Grid td>a:hover { border-color: ' + app.settings.grid.cells.borderColorHover + '; margin: ' + app.settings.grid.cells.marginHover + 'px; border-radius: ' + app.settings.grid.cells.borderRadiusHover + 'px; }')].style;
+	dial.styles.grid.cellHover = dial.Style.sheet.cssRules[dial.Style.sheet.insertRule('.Grid td:hover {}')].style;
+	dial.styles.grid.link = dial.Style.sheet.cssRules[dial.Style.sheet.insertRule('.Grid td>a { display: block; outline: none; overflow: hidden; text-decoration: none; margin: ' + app.settings.grid.cells.margin + 'px; opacity: ' + app.settings.grid.cells.opacity + '; border: ' + app.settings.grid.cells.borderSize + 'px solid ' + app.settings.grid.cells.borderColor + '; border-radius: ' + app.settings.grid.cells.borderRadius + 'px; }')].style;
+	dial.styles.grid.linkHover = dial.Style.sheet.cssRules[dial.Style.sheet.insertRule('.Grid td>a:hover { border-color: ' + app.settings.grid.cells.borderColorHover + '; border-width: ' + app.settings.grid.cells.borderSizeHover + 'px; margin: ' + app.settings.grid.cells.marginHover + 'px; opacity: ' + app.settings.grid.cells.opacityHover + '; border-radius: ' + app.settings.grid.cells.borderRadiusHover + 'px; }')].style;
 	dial.styles.grid.linkPanel = dial.Style.sheet.cssRules[dial.Style.sheet.insertRule('.Grid td>a>div:first-child { background-repeat: no-repeat; }')].style;
 	if(app.settings.grid.cells.backgroundColor) dial.styles.grid.linkPanel.backgroundColor = app.settings.grid.cells.backgroundColor;
 	dial.styles.grid.linkPanelHover = dial.Style.sheet.cssRules[dial.Style.sheet.insertRule('.Grid td>a:hover>div:first-child { }')].style;
 	if(app.settings.grid.cells.backgroundColorHover) dial.styles.grid.linkPanelHover.backgroundColor = app.settings.grid.cells.backgroundColorHover;
-	dial.styles.grid.linkTitle = dial.Style.sheet.cssRules[dial.Style.sheet.insertRule('.Grid td>a>div:last-child { height: ' + app.settings.grid.cells.titleHeight + 'px; font-size: ' + app.settings.grid.cells.titleFontSize + 'pt; font-family: ' + app.settings.grid.cells.titleFont + 'pt; text-align: center; overflow: hidden; color: ' + app.settings.grid.cells.titleColor + '; border-top: 1px solid ' + app.settings.grid.cells.borderColor + '; }')].style;
+	dial.styles.grid.linkTitle = dial.Style.sheet.cssRules[dial.Style.sheet.insertRule('.Grid td>a>div:last-child { height: ' + app.settings.grid.cells.titleHeight + 'px; font-size: ' + app.settings.grid.cells.titleFontSize + 'pt; font-family: ' + app.settings.grid.cells.titleFont + 'pt; text-align: center; overflow: hidden; color: ' + app.settings.grid.cells.titleColor + '; border-top: ' + app.settings.grid.cells.titleBorderSize + 'px solid ' + app.settings.grid.cells.borderColor + '; }')].style;
 	if(app.settings.grid.cells.titleBackgroundColor) dial.styles.grid.linkTitle.backgroundColor = app.settings.grid.cells.titleBackgroundColor;
-	dial.styles.grid.linkTitleHover = dial.Style.sheet.cssRules[dial.Style.sheet.insertRule('.Grid td>a:hover>div:last-child { color: ' + app.settings.grid.cells.titleColorHover + '; border-top-color: ' + app.settings.grid.cells.borderColorHover + ' }')].style;
+	dial.styles.grid.linkTitleHover = dial.Style.sheet.cssRules[dial.Style.sheet.insertRule('.Grid td>a:hover>div:last-child { font-size: ' + app.settings.grid.cells.titleFontSizeHover + 'pt; color: ' + app.settings.grid.cells.titleColorHover + '; border-top-width: ' + app.settings.grid.cells.titleBorderSizeHover + 'px; border-top-color: ' + app.settings.grid.cells.borderColorHover + ' }')].style;
 	if(app.settings.grid.cells.titleBackgroundColorHover) dial.styles.grid.linkTitleHover.backgroundColor = app.settings.grid.cells.titleBackgroundColorHover;
 	dial.styles.grid.linkEmpty = dial.Style.sheet.cssRules[dial.Style.sheet.insertRule('.Grid td>a.Empty { display: none; }')].style;
-	dial.styles.grid.linkBack = dial.Style.sheet.cssRules[dial.Style.sheet.insertRule('.Grid td>a.Back :first-child { background-image: ' + app.settings.grid.backIcon + '; background-repeat: no-repeat; background-position: center center; }')].style;
+	dial.styles.grid.linkBack = dial.Style.sheet.cssRules[dial.Style.sheet.insertRule('.Grid td>a.Back :first-child { background-image: ' + app.settings.grid.backIcon + '; }')].style;
+	applyImageMode(app.settings.grid.backIconMode, dial.styles.grid.linkBack);
 	dial.styles.grid.linkFolder = dial.Style.sheet.cssRules[dial.Style.sheet.insertRule('.Grid td>a.Folder :first-child { background-image: ' + app.settings.grid.folderIcon + '; background-repeat: no-repeat; background-size: 100% 100%; }')].style;
+	applyImageMode(app.settings.grid.folderIconMode, dial.styles.grid.linkFolder);
 	dial.styles.grid.linkBookmark = dial.Style.sheet.cssRules[dial.Style.sheet.insertRule('.Grid td>a.Bookmark :first-child { background-repeat: no-repeat; background-size: 100% 100%; }')].style;
 	dial.styles.grid.linkBookmarkLoading = dial.Style.sheet.cssRules[dial.Style.sheet.insertRule('.Grid td>a.BookmarkLoading :first-child { background-image: url("' + app.settings.grid.cells.loadingIcon + '"); background-repeat: no-repeat; background-position: center center; }')].style;
+	if(oldStyle) document.head.removeChild(oldStyle);
 };
 dial.initGrid = function(){
-	if(dial.Grid) document.body.removeChild(dial.Grid);
+	var oldGrid = dial.Grid;
 	dial.Grid = document.createElement('table');
 	var grid = document.createElement('table');
 	dial.Grid.className = 'Grid';
@@ -254,16 +320,41 @@ dial.initGrid = function(){
 			link.className = 'Empty';
 			link.appendChild(document.createElement('div'));
 			link.appendChild(document.createElement('div'));
-			link.onmousedown = function(){ dial._selectedItem = this; };
+			link.onmousedown = function(){
+				dial._selectedItem = this;
+				if(dial._selectedItem.Node){
+					switch(dial._selectedItem.Node.type){
+						case app.GridNodes.GridNodeType.folder:
+							dial.ItemMenuCaptureHere.hidden = true;
+							break;
+						case app.GridNodes.GridNodeType.bookmark:
+							//dial.ItemMenuCaptureHere.hidden = false;
+							dial.ItemMenuCaptureHere.hidden = true;
+							break;
+					}
+				}
+			};
 			
 			function dragstart_handler(ev) {
+				if(!ev.target.Node){
+					ev.preventDefault();
+					return;
+				}
 				var index = (dial.page - 1) * (app.settings.grid.rows * app.settings.grid.columns) + +(ev.target.parentElement.getAttribute('gridindex'));
 				if(app.settings.grid.backNode && dial.path != '/') index -= dial.page;
 				ev.dataTransfer.setData("text/plain", index);
-			 }
-			 function dragover_handler(ev) {
+			}
+			function dragover_handler(ev) {
 				ev.preventDefault();
-				ev.dataTransfer.dropEffect = "move"
+				if(app.settings.grid.backNode && dial.path != '/'){
+					var gridIndex = 0;
+					if(ev.target.tagName == 'DIV') gridIndex = +(ev.target.parentElement.parentElement.getAttribute('gridindex'));
+					else gridIndex = +(ev.target.getAttribute('gridindex'));
+					if(gridIndex==0) ev.dataTransfer.dropEffect = "none";
+					else ev.dataTransfer.dropEffect = "move";
+				} else {
+					ev.dataTransfer.dropEffect = "move";
+				}
 			}
 			function drop_handler(ev) {
 				ev.preventDefault();
@@ -276,7 +367,7 @@ dial.initGrid = function(){
 					EndIndex = (dial.page - 1) * (app.settings.grid.rows * app.settings.grid.columns) + +(ev.target.getAttribute('gridindex'));
 				}
 				if(app.settings.grid.backNode && dial.path != '/') EndIndex -= dial.page;
-				app.Messages.setNodeIndex(StartIndex, EndIndex);
+				if(StartIndex != EndIndex) app.Messages.setNodeIndex(StartIndex, EndIndex);
 			}
 			link.draggable = true;
 			link.ondragstart = dragstart_handler;
@@ -286,28 +377,78 @@ dial.initGrid = function(){
 	}
 	document.body.appendChild(dial.Grid);
 	dial.updateGridLayout();
+	if(oldGrid) document.body.removeChild(oldGrid);
 	return dial.Grid;
 };
 dial.updateGridLayout = function(){
-	var fullWidth = dial.Grid.parentElement.offsetWidth - 2 * app.settings.grid.margin;
-	var fullHeight = dial.Grid.parentElement.offsetHeight - 2 * app.settings.grid.margin;
-	var linkWidth = fullWidth / app.settings.grid.columns;
-	var linkHeight = fullHeight / app.settings.grid.rows;
-	if(linkWidth <= linkHeight * 4 / 3) linkHeight = linkWidth / 4 * 3;
-	else linkWidth = linkHeight / 3 * 4;
+	var parentWidth = dial.Grid.parentElement.offsetWidth;
+	var parentHeight = dial.Grid.parentElement.offsetHeight;
 	
-	dial.styles.grid.cell.width = linkWidth.toString() + 'px';
-	dial.styles.grid.cell.height = linkHeight.toString() + 'px';
+	function calc(gridMargin, cellsMargin, borderSize, titleBorderSize){
+		var fullWidth = parentWidth - 2 * gridMargin;
+		var fullHeight = parentHeight - 2 * gridMargin;
+		var cellWidth = fullWidth / app.settings.grid.columns;
+		var cellHeight = fullHeight / app.settings.grid.rows;
+		var linkWidth = 0;
+		var linkHeight = 0;
+		if(cellWidth <= cellHeight * 4 / 3) cellHeight = cellWidth / 4 * 3;
+		else cellWidth = cellHeight / 3 * 4;
+		linkWidth = cellWidth - 2 * (cellsMargin + 1) - 2 * borderSize;
+		linkHeight = cellHeight - 2 * (cellsMargin + 1) - 2 * borderSize - titleBorderSize;
+		return {
+			cellWidth: cellWidth,
+			cellHeight: cellHeight,
+			linkWidth: linkWidth,
+			linkHeight: linkHeight
+		};
+	}
 
-	linkWidth = linkWidth - 2 * (app.settings.grid.cells.margin + 1);
-	linkHeight = linkHeight - 2 * (app.settings.grid.cells.margin + 1);
-	
-	dial.styles.grid.link.width = linkWidth.toString() + 'px';
-	dial.styles.grid.link.height = linkHeight.toString() + 'px';
-	if(app.settings.grid.cells.title) dial.styles.grid.linkPanel.height = (linkHeight - app.settings.grid.cells.titleHeight - 1).toString() + 'px';
-	else dial.styles.grid.linkPanel.height = linkHeight.toString() + 'px';
+	var values = calc(app.settings.grid.margin, app.settings.grid.cells.margin, app.settings.grid.cells.borderSize, app.settings.grid.cells.titleBorderSize);
+	dial.styles.grid.cell.width = values.cellWidth.toString() + 'px';
+	dial.styles.grid.cell.height = values.cellHeight.toString() + 'px';
+	dial.styles.grid.link.width = values.linkWidth.toString() + 'px';
+	dial.styles.grid.link.height = values.linkHeight.toString() + 'px';
+	if(app.settings.grid.cells.title) dial.styles.grid.linkPanel.height = (values.linkHeight - app.settings.grid.cells.titleHeight - 1 - app.settings.grid.cells.titleBorderSize).toString() + 'px';
+	else dial.styles.grid.linkPanel.height = values.linkHeight.toString() + 'px';
+
+	values = calc(app.settings.grid.margin, app.settings.grid.cells.marginHover, app.settings.grid.cells.borderSizeHover, app.settings.grid.cells.titleBorderSizeHover);
+	dial.styles.grid.cellHover.width = values.cellWidth.toString() + 'px';
+	dial.styles.grid.cellHover.height = values.cellHeight.toString() + 'px';
+	dial.styles.grid.linkHover.width = values.linkWidth.toString() + 'px';
+	dial.styles.grid.linkHover.height = values.linkHeight.toString() + 'px';
+	if(app.settings.grid.cells.titleHover) dial.styles.grid.linkPanelHover.height = (values.linkHeight - app.settings.grid.cells.titleHeightHover - 1 - app.settings.grid.cells.titleBorderSizeHover).toString() + 'px';
+	else dial.styles.grid.linkPanelHover.height = values.linkHeight.toString() + 'px';
 };
 dial.populateGrid = function(){
+	function applyImageMode(imageMode, target){
+		switch(imageMode){
+			case -1:
+				target.backgroundRepeat = '';
+				target.backgroundSize = '';
+				target.backgroundPosition = '';
+				break;
+			case 0:
+				target.backgroundRepeat = 'no-repeat';
+				target.backgroundSize = '100% 100%';
+				target.backgroundPosition = '';
+				break;
+			case 1:
+				target.backgroundRepeat = 'no-repeat';
+				target.backgroundSize = 'cover';
+				target.backgroundPosition = 'center';
+				break;
+			case 2:
+				target.backgroundRepeat = 'no-repeat';
+				target.backgroundSize = 'contain';
+				target.backgroundPosition = 'center';
+				break;
+			case 3:
+				target.backgroundRepeat = 'no-repeat';
+				target.backgroundSize = 'auto auto';
+				target.backgroundPosition = 'center';
+				break;
+		}
+	}
 	populateEmpty = function(link){
 		link.Node = null;
 		link.className = 'Empty';
@@ -328,8 +469,12 @@ dial.populateGrid = function(){
 	populateFolder = function(link, node){
 		link.Node = node;
 		link.className = 'Folder';
-		if(node.image) link.childNodes[0].style.backgroundImage = 'url(' + node.image + ')';
-		else link.childNodes[0].style.backgroundImage = '';
+		if(node.imageMode || node.imageMode == 0) applyImageMode(node.imageMode, link.childNodes[0].style);
+		else applyImageMode(-1, link.childNodes[0].style);
+		if(node.image){
+			if(node.image.indexOf('url(')>=0) link.childNodes[0].style.backgroundImage = node.image;
+			else link.childNodes[0].style.backgroundImage = 'url(' + node.image + ')';
+		} else link.childNodes[0].style.backgroundImage = '';
 		link.childNodes[1].innerText = node.title;
 		if(dial.path) link.href = '?' + 'bg=' + encodeURIComponent(app.settings.backgroundColor) + '&path=' + encodeURIComponent(dial.path + node.title);
 		else link.href = '?' + 'bg=' + encodeURIComponent(app.settings.backgroundColor) + '&path=' + encodeURIComponent(node.title);
@@ -338,9 +483,12 @@ dial.populateGrid = function(){
 	}
 	populateBookmark = function(link, node){
 		link.Node = node;
+		if(node.imageMode || node.imageMode == 0) applyImageMode(node.imageMode, link.childNodes[0].style);
+		else applyImageMode(-1, link.childNodes[0].style);
 		if(node.image){
 			link.className = 'Bookmark';
-			link.childNodes[0].style.backgroundImage = 'url(' + node.image + ')';
+			if(node.image.indexOf('url(')>=0) link.childNodes[0].style.backgroundImage = node.image;
+			else link.childNodes[0].style.backgroundImage = 'url(' + node.image + ')';
 		} else {
 			link.className = 'BookmarkLoading';
 			link.childNodes[0].style.backgroundImage = '';
@@ -401,6 +549,88 @@ dial.refreshNode = function(selectedItem){
 	selectedItem.childNodes[0].style.backgroundImage = app.settings.grid.loadingIcon;
 	app.Messages.refreshNode(selectedItem.Node.id);
 }
+dial.captureHere = function(selectedItem){
+	function headersReceived(e){
+		for (let i = e.responseHeaders.length - 1; i >= 0; i--) {
+			switch(e.responseHeaders[i].name.toLowerCase()){
+				case 'x-frame-options':
+				case 'frame-options':
+				case 'content-security-policy':
+					e.responseHeaders.splice(i, 1);
+					break;
+			}
+		}
+		return { responseHeaders: e.responseHeaders };
+	};
+	function pageLoaded(){
+		if(!iframe) return;
+		function clean(){
+			if(!iframe) return;
+			selectedItem.children[0].removeChild(iframe);
+			dial.capture -= 1;
+			if(dial.capture == 0){
+				browser.webRequest.onHeadersReceived.removeListener(headersReceived);
+				browser.tabs.update(tab.id, {muted: false}).then();
+			}
+			iframe = null;
+		}
+		setTimeout(function(){
+			browser.tabs.captureVisibleTab().then(function(img){
+				var imgObj = new Image;
+				imgObj.src = img;
+				var canvas = document.createElement('canvas');
+				canvas.style.width = rect.width.toString() + 'px';
+				canvas.style.height = rect.height.toString() + 'px';
+				canvas.width = rect.width;
+				canvas.height = rect.height;
+				var ctx = canvas.getContext('2d');
+				ctx.clearRect(0, 0, rect.width, rect.height);
+				ctx.save();
+				setTimeout(function(){
+					ctx.drawImage(imgObj, rect.left, rect.top, rect.width, rect.height, 0, 0, rect.width, rect.height);
+					ctx.restore();
+					img = canvas.toDataURL();
+					selectedItem.children[0].style.backgroundImage = 'url(' + img + ')';
+					clean();
+					app.Messages.updateNode(selectedItem.Node.id, { image: img }, function(){
+						setTimeout(function(){
+							if(dial.capture == 0) dial.skipUpdate = false;
+						}, 500);
+					});
+				}, 500);
+			}, clean);
+		}, 3000);
+
+
+	};
+
+	var tab = null;
+	var previewWidth = 1200; // Need to be linked to settings
+	var previewHeight = 710; // Need to be linked to settings
+	var iframe = document.createElement('iframe');
+	var rect = selectedItem.children[0].getBoundingClientRect();
+	browser.tabs.getCurrent().then(function(currentTab){
+		tab = currentTab;
+		var ratioX = previewWidth / selectedItem.children[0].offsetWidth;
+		var ratioY = previewHeight / selectedItem.children[0].offsetHeight;
+		iframe.style.width = ratioX * selectedItem.children[0].offsetWidth + 'px';
+		iframe.style.height = ratioY * selectedItem.children[0].offsetHeight + 'px';
+		iframe.style.position = 'absolute';
+		iframe.style.MozTransform = 'scale(' + (1/ratioX) + ', ' + (1/ratioY) + ')';
+		iframe.style.MozTransformOrigin = 'top left';
+		iframe.sandbox = 'allow-scripts allow-same-origin';
+		iframe.onload = function(){ pageLoaded(); }
+		dial.capture += 1;
+		if(dial.capture == 1){
+			dial.skipUpdate = true;
+			browser.webRequest.onHeadersReceived.addListener(headersReceived, { urls:['*://*/*'], types:['sub_frame'] }, ['blocking', 'responseHeaders']);
+			browser.tabs.update(tab.id, {muted: true}).then();
+		}
+		iframe.src = selectedItem.Node.url;
+		selectedItem.children[0].appendChild(iframe);
+		//setTimeout(function(){ pageLoaded(); }, 6000);
+	});
+}
 dial.capturePage = function(selectedItem){
 	selectedItem.className = 'BookmarkLoading';
 	selectedItem.childNodes[0].style.backgroundImage = app.settings.grid.loadingIcon;
@@ -457,7 +687,7 @@ dial.PopupPanel = function(width, height, modal){ // PopupPanel Object
 }
 
 dial.editSettings = function(){
-	var popup = new dial.PopupPanel(500, 420, true);
+	var popup = new dial.PopupPanel(500, 440, true);
 	var iframe = document.createElement('iframe');
 	iframe.style.width = '100%';
 	iframe.style.height = '100%';
@@ -469,6 +699,7 @@ dial.editSettings = function(){
 	iframe.src = '/html/settings.html';
 	iframe.popup = popup;
 	popup.popup();
+	iframe.focus();
 }
 
 dial.editProperties = function(selectedItem){
@@ -484,4 +715,5 @@ dial.editProperties = function(selectedItem){
 	iframe.src = '/html/properties.html?id=' + selectedItem.Node.id;
 	iframe.popup = popup;
 	popup.popup();
+	iframe.focus();
 }
