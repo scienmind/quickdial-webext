@@ -1,71 +1,71 @@
 {
   "extensionDescription": {
-    "message": "Quick Dial, page dial inspirée de fast dial.",
+    "message": "Quick Dial, eine Schnellwahl-Seite inspiriert von Fast Dial.",
     "description": "Description of the extension."
   },
 
   "menuAddToQuickDial": {
-    "message": "Ajouter à Quick Dial",
+    "message": "Zu Quick Dial hinzufügen",
     "description": "Text of add bookmark menu item."
   },
 
   "menuNew": {
-    "message": "Nouveau",
+    "message": "Neu",
     "description": "Text of new menu item."
   },
 
   "menuNewBookmark": {
-    "message": "Marque-page",
+    "message": "Lesezeichen",
     "description": "Text of add bookmark menu item."
   },
 
   "AddBookmarkPrompt": {
-    "message": "Entrez l'url du nouveau marque-page :",
+    "message": "Neue Lesezeichen URL eingeben:",
     "description": "Text of the add bookmark prompt."
   },
 
   "menuNewFolder": {
-    "message": "Dossier",
+    "message": "Ordner",
     "description": "Text of add folder menu item."
   },
 
   "AddFolderPrompt": {
-    "message": "Entrez le nom du nouveau dossier :",
+    "message": "Neuen Ordner Namen eingeben:",
     "description": "Text of the add folder prompt."
   },
 
   "menuProperties": {
-    "message": "Propriétés",
+    "message": "Bearbeiten",
     "description": "Text of properties menu item."
   },
 
   "menuRefreshItem": {
-    "message": "Actualiser",
+    "message": "Neu laden",
     "description": "Text of refresh menu item."
   },
 
   "menuCaptureHere": {
-    "message": "Capturer ici",
+    "message": "Hier aufnehmen",
     "description": "Text of capture here menu item."
   },
 
   "menuCapturePage": {
-    "message": "Capturer dans un nouvel onglet",
+    "message": "In einem neuen Tab aufnehmen",
     "description": "Text of capture menu item."
   },
 
   "menuDeleteItem": {
-    "message": "Supprimer",
+    "message": "Löschen",
     "description": "Text of delete menu item."
   },
 
   "deleteItemConfimation": {
-    "message": "Supprimer $1 ?",
+    "message": "Löschen $1?",
     "description": "Text of delete confirmation."
   },
 
   "menuSettings": {
-    "message": "Paramètres Quick Dial",
+    "message": "Quick Dial Einstellungen",
     "description": "Text of settings menu item."
   }
 

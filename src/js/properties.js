@@ -7,27 +7,39 @@ document.addEventListener("DOMContentLoaded", function(event) {
 });
 
 app.init = function(){
+	document.addEventListener('keyup', function(e){
+		switch(e.key){
+			case 'Escape':
+				window.frameElement.popup.close();
+				break;
+		}
+	});
 	app.Messages.getSettings(function(settings){
 		app.settings = settings;
 		app.Messages.getNodeByID(new URL(window.location).searchParams.get('id'), function(node){
 			app.node = node;
 			Title.value = node.title;
+			if(node.imageMode == 0) ImageMode.value = 0;
+			else if(node.imageMode) ImageMode.value = node.imageMode;
 			ImagePreview.style.backgroundRepeat = 'no-repeat';
 			ImagePreview.style.backgroundSize = '100% 100%';
 			switch(node.type){
 				case app.GridNodes.GridNodeType.folder:
+					TitleLocked.parentNode.style.display = 'none';
 					Url.parentNode.parentNode.style.display = 'none';
 					if(node.image){
-						if(node.image.indexOf('url(')>0) Image = node.image;
+						if(node.image.indexOf('url(')>=0) Image = node.image;
 						else Image = 'url(' + node.image + ')';
 					} else Image = null;
 					if(Image==null) ImagePreview.style.backgroundImage = app.settings.grid.folderIcon;
 					else ImagePreview.style.backgroundImage = Image;
 					break;
 				case app.GridNodes.GridNodeType.bookmark:
+					TitleLocked.checked = (node.titleLocked==true);
 					ImageDefault.style.display = 'none';
 					Url.value = node.url;
-					Image = 'url(' + node.image + ')';
+					if(node.image.indexOf('url(')>=0) Image = node.image;
+					else Image = 'url(' + node.image + ')';
 					ImagePreview.style.backgroundImage = Image;
 					break;
 			}
@@ -87,10 +99,10 @@ app.init = function(){
 	BtnApply.onclick = function(){
 		switch(app.node.type){
 			case app.GridNodes.GridNodeType.folder:
-				app.Messages.updateNode(app.node.id, { title: Title.value, image: Image })
+				app.Messages.updateNode(app.node.id, { title: Title.value, image: Image, imageMode: +(ImageMode.value) })
 				break;
 			case app.GridNodes.GridNodeType.bookmark:
-				app.Messages.updateNode(app.node.id, { title: Title.value, url: Url.value, image: Image })
+				app.Messages.updateNode(app.node.id, { title: Title.value, titleLocked: TitleLocked.checked, url: Url.value, image: Image, imageMode: +(ImageMode.value) })
 				break;
 		}
 	}
